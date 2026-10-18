@@ -1,0 +1,41 @@
+name: Validate Codex plugins
+on:
+  pull_request:
+    paths:
+      - ".agents/plugins/marketplace.json"
+      - "**/plugin.json"
+      - "pstack/**"
+      - "harness/codex/**"
+      - "scripts/generate-pstack-codex.mjs"
+      - "scripts/generate-pstack-harness-trees.mjs"
+      - "scripts/pstack-harness.test.mjs"
+      - "scripts/validate-codex-plugins.mjs"
+      - ".github/workflows/validate-codex-plugins.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".agents/plugins/marketplace.json"
+      - "**/plugin.json"
+      - "pstack/**"
+      - "harness/codex/**"
+      - "scripts/generate-pstack-codex.mjs"
+      - "scripts/generate-pstack-harness-trees.mjs"
+      - "scripts/pstack-harness.test.mjs"
+      - "scripts/validate-codex-plugins.mjs"
+      - ".github/workflows/validate-codex-plugins.yml"
+permissions:
+  contents: read
+jobs:
+  validate-codex:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Test pstack harness packaging
+        run: node --test scripts/pstack-harness.test.mjs
+      - name: Check generated Codex harness tree
+        run: node scripts/generate-pstack-codex.mjs --check
+      - name: Validate Codex plugin definitions
+        run: node scripts/validate-codex-plugins.mjs

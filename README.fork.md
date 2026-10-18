@@ -58,7 +58,9 @@ node scripts/generate-pstack-harness-trees.mjs
 node scripts/generate-pstack-codex.mjs
 ```
 
-検証には CI と同じ依存をインストールし、次を実行します。
+fork 専用の [Codex 検証 workflow](./.github/workflows/validate-codex-plugins.yml) は、関連ファイルを変更した PR と `main` への push で、ハーネステスト・Codex 生成物チェック・Codex カタログ検証を実行します。
+
+手元で検証するには CI と同じ依存をインストールし、次を実行します。
 
 ```bash
 npm install --no-save --package-lock=false ajv ajv-formats
