@@ -80,11 +80,28 @@ test("Codex preserves manual-only policy without disabling automatic setup", (t)
   assert.equal(f.run(GENERATOR).status, 0);
   const sidecar = `${OUT}/skills/poteto-mode/agents/openai.yaml`;
   assert.equal(f.read(sidecar), "policy:\n  allow_implicit_invocation: false\n");
+  assert.doesNotMatch(f.read(`${OUT}/skills/poteto-mode/SKILL.md`), /^disable-model-invocation:/m);
   assert.ok(!existsSync(join(f.root, OUT, "skills/setup-pstack/agents/openai.yaml")));
   rmSync(join(f.root, sidecar));
   const check = f.run(GENERATOR, "--check");
   assert.equal(check.status, 1);
   assert.ok(check.output.includes(sidecar), check.output);
+});
+
+test("Codex removes Cursor metadata while preserving portable fields and skill content", (t) => {
+  const f = fixture(t);
+  const portable = "name: poteto-mode\ndescription: >-\n  Preserve $& multiline\n  skill descriptions.\nlicense: MIT\ncompatibility: Requires Node.js\nallowed-tools: Read\nmetadata:\n  icon: keep-me\n  color: keep-me-too\n";
+  const cursor = "disable-model-invocation: true\nicon: crown\ncolor: yellow\npaths:\n  - '**/*.ts'\n  - '**/*.tsx'\n";
+  const body = "\n# Mode\n\npaths: keep this body text\n";
+  const source = `---\n${portable}${cursor}---\n${body}`;
+  f.write("pstack/skills/poteto-mode/SKILL.md", source);
+  const generated = f.run(GENERATOR);
+  assert.equal(generated.status, 0, generated.output);
+  assert.equal(f.read(`${OUT}/skills/poteto-mode/SKILL.md`), `---\n${portable}---\n${body}`);
+  assert.equal(f.read(`${OUT}/skills/poteto-mode/agents/openai.yaml`), "policy:\n  allow_implicit_invocation: false\n");
+  assert.equal(f.read("pstack/skills/poteto-mode/SKILL.md"), source);
+  const check = f.run(GENERATOR, "--check");
+  assert.equal(check.status, 0, check.output);
 });
 
 test("a missing Codex tool mapping fails before replacing the generated tree", (t) => {

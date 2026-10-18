@@ -129,8 +129,14 @@ function render() {
     "It maps the Cursor names in pstack skills to Codex.";
   for (const [skill, { wrap, frontmatter }] of classes) {
     const path = `skills/${skill}/SKILL.md`;
-    const text = files.get(path).bytes.toString("utf8");
-    if (wrap) files.get(path).bytes = Buffer.from(text.replace(/^(# .*)\n+/m, `$1\n\n${line}\n\n`));
+    // Keep portable YAML blocks verbatim; Cursor's invocation policy is emitted below.
+    const portable = `${frontmatter}\n`.split(/(?=^[a-z][a-z-]*:)/m)
+      .filter((block) => !/^(?:disable-model-invocation|icon|color|paths):/.test(block))
+      .join("");
+    let text = files.get(path).bytes.toString("utf8")
+      .replace(/^---\n[\s\S]*?\n---/, () => `---\n${portable}---`);
+    if (wrap) text = text.replace(/^(# .*)\n+/m, `$1\n\n${line}\n\n`);
+    files.get(path).bytes = Buffer.from(text);
     if (/^disable-model-invocation: true\s*$/m.test(frontmatter)) {
       files.set(`skills/${skill}/agents/openai.yaml`, {
         bytes: Buffer.from("policy:\n  allow_implicit_invocation: false\n"),
