@@ -7,6 +7,8 @@ disable-model-invocation: true
 
 # TypeScript best practices
 
+In Codex, read [the Codex adapter](../../docs/harness/codex.md) once per session before you follow this skill. It maps the Cursor names in pstack skills to Codex.
+
 Apply the **type-system-discipline** principle skill first.
 
 | Rule | Summary |

@@ -62,11 +62,13 @@ const skills = readdirSync(SKILLS).filter((name) => existsSync(join(SKILLS, name
 
 function classify(skill) {
   const dir = join(SKILLS, skill);
-  const others = skills.filter((name) => name !== skill).join("|");
-  const route = new RegExp(`the \\*\\*(?<bold>${others})\\*\\* skill|\`/(?<command>${others})\``, "g");
+  const otherSkills = skills.filter((name) => name !== skill);
+  const others = otherSkills.join("|");
+  const principles = otherSkills.filter((name) => name.startsWith("principle-")).map((name) => name.slice("principle-".length)).join("|");
+  const route = new RegExp(`the \\*\\*(?<bold>${others})\\*\\* skill|\`/?(?<command>${others})\`|\\*\\*(?<principle>${principles})\\*\\* principle skill`, "g");
   const linksToSkill = (line, name) => line.includes(`(../${name}/`);
   const namesBareSkill = (line) =>
-    [...line.matchAll(route)].some(({ groups }) => !linksToSkill(line, groups.bold ?? groups.command));
+    [...line.matchAll(route)].some(({ groups }) => !linksToSkill(line, groups.bold ?? groups.command ?? `principle-${groups.principle}`));
   const usesCursorNames = new Set();
   for (const path of walk(dir).filter((path) => path.endsWith(".md"))) {
     const text = readFileSync(path, "utf8");

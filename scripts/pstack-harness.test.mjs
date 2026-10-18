@@ -123,6 +123,34 @@ for (const [key, path, instruction, mapping] of [
   });
 }
 
+test("Codex routes known skills and principle aliases through the adapter", (t) => {
+  const f = fixture(t);
+  const adapter = f.read("pstack/docs/harness/codex.md");
+  f.write("pstack/skills/principle-example/SKILL.md", AUTOMATIC.replace("name: setup-pstack", "name: principle-example"));
+  for (const [instruction, needsAdapter] of [
+    ["Read `poteto-mode`.", true],
+    ["Read `/poteto-mode`.", true],
+    ["Use the **poteto-mode** skill.", true],
+    ["Apply the **example** principle skill.", true],
+    ["Read [`poteto-mode`](../poteto-mode/SKILL.md).", false],
+    ["Read [the **example** principle skill](../principle-example/SKILL.md).", false],
+    ["Configure `setup-pstack`.", false],
+    ["Read `missing-skill`.", false],
+  ]) {
+    f.write("pstack/skills/setup-pstack/SKILL.md", `${AUTOMATIC}\n${instruction}\n`);
+    f.write("pstack/docs/harness/codex.md", adapter);
+    const missing = f.run(GENERATOR);
+    if (needsAdapter) {
+      assert.equal(missing.status, 1, `${instruction}: ${missing.output}`);
+      assert.match(missing.output, /Codex adapter has no row for Run another pstack skill/);
+      f.write("pstack/docs/harness/codex.md", `${adapter}\nRun another pstack skill by its installed path.\n`);
+    }
+    const generated = needsAdapter ? f.run(GENERATOR) : missing;
+    assert.equal(generated.status, 0, `${instruction}: ${generated.output}`);
+    assert.equal(f.read(`${OUT}/skills/setup-pstack/SKILL.md`).includes("[the Codex adapter]"), needsAdapter, instruction);
+  }
+});
+
 test("regeneration replaces only the owned output and leaves both harnesses independently checkable", (t) => {
   const f = fixture(t);
   const source = f.snapshot("pstack");
