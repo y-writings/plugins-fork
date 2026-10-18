@@ -10,7 +10,28 @@ pstack skills use Cursor names. In Codex, read this file once per session before
 | `AskQuestion` | `request_user_input` when available in the current mode, or `request_user_input_async` when offered. Otherwise ask in plain text. Never call a Plan-only tool outside Plan mode. |
 | Open a todolist | Use `update_plan` if offered. Otherwise keep a short checklist in your replies and update it at each phase. |
 | Run another pstack skill (`/name` or "the **name** skill") | Read `<pstack>/skills/<name>/SKILL.md` and follow it. When giving the user a prompt, write `$pstack:<name>`, for example `$pstack:poteto-mode`, matching the installed plugin's skill picker. The shared guide's slash commands mean the same skills. |
+| `create-skill`, `/create-skill` | Use Codex's `skill-creator`: find it in the current session's available-skills catalog, read the listed `SKILL.md`, and follow its supported authoring and validation steps. User-facing invocation is `$skill-creator`. If unavailable, report the missing dependency and leave dependent authoring incomplete. Do not claim a Cursor-specific test or description-optimization loop ran unless the available creator supports it. |
 | `Read`, `Grep`, `Glob`, `Bash` | Use the session's file and shell tools; prefer `rg` and `rg --files` for searches. |
+
+## Bundled paths and scripts
+
+Resolve `pstack/<path>` from the installed `<pstack>/<path>`, including when a playbook asks for `git show origin/main:pstack/<path>`: read the installed file directly, since the target project's Git history does not contain the plugin. A bare `scripts/<path>` belonging to a pstack skill resolves under `<pstack>/skills/<owning-skill>/scripts/<path>`. Project-owned paths, such as a project's `scripts/snapshot.sh`, keep their project meaning.
+
+Substitute the resolved absolute plugin path for `<pstack>` and quote it. Keep the working directory at the target project and preserve all remaining flags and arguments, including relative plan, log, repository, and store paths. Do not change into the plugin cache to run a workflow helper.
+
+| Shared command | Installed command prefix |
+| --- | --- |
+| `node pstack/skills/poteto-mode/scripts/check-plan.mjs` | `node "<pstack>/skills/poteto-mode/scripts/check-plan.mjs"` |
+| `scripts/watch-pr/watch-pr` | `"<pstack>/skills/poteto-mode/scripts/watch-pr/watch-pr"` |
+| `bun scripts/orch/orch.ts`, the `orch` shorthand | `bun "<pstack>/skills/poteto-mode/scripts/orch/orch.ts"` |
+| `scripts/worktree-audit.sh` | `"<pstack>/skills/poteto-mode/scripts/worktree-audit.sh"` |
+| `scripts/log.sh` | `"<pstack>/skills/show-me-your-work/scripts/log.sh"` |
+
+The watcher and orchestration CLI bootstrap their own dependencies. For their package's maintainer checks only, use `bun --cwd "<pstack>/skills/poteto-mode/scripts" run test` or `run typecheck`, since those package scripts use package-relative paths. Report a missing runtime or failed dependency installation; do not claim the helper ran.
+
+## Agent store
+
+Use the session-provided agent store when available. Otherwise use a task-specific `.audit/pstack/<task-slug>/` directory under the target workspace. Resolve and record its absolute path, pass it to workers, and reuse it on session pickup. Keep plans under its `docs/` and orchestration state under `orchestrate/<project-slug>/`, unless the user or existing workflow supplies a destination. Pass that orchestration directory through `--store` or `ORCH_STORE` on every `orch` invocation. Keep these task artifacts local unless publication is requested; never write them into the installed plugin cache.
 
 ## Subagent fields
 

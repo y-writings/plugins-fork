@@ -98,6 +98,31 @@ test("a missing Codex tool mapping fails before replacing the generated tree", (
   assert.deepEqual(f.snapshot(OUT), before);
 });
 
+for (const [key, path, instruction, mapping] of [
+  ["`create-skill`", "SKILL.md", "Use the **create-skill** skill.", "`create-skill` maps to Codex's available skill-creator."],
+  ["Bundled paths and scripts", "playbooks/run.md", "Run `scripts/run.sh`.", "Bundled paths and scripts resolve from the installed skill, keeping the project working directory."],
+  ["Agent store", "playbooks/plan.md", "Write under the agent store's docs directory.", "Agent store uses a task-specific directory in the target workspace."],
+]) {
+  test(`Codex requires the ${key} mapping before bundling dependent instructions`, (t) => {
+    const f = fixture(t);
+    assert.equal(f.run(GENERATOR).status, 0);
+    const before = f.snapshot(OUT);
+    f.write(`pstack/skills/setup-pstack/${path}`, path === "SKILL.md"
+      ? `${AUTOMATIC}\n${instruction}\n`
+      : instruction);
+    const missing = f.run(GENERATOR);
+    assert.equal(missing.status, 1, missing.output);
+    assert.ok(missing.output.includes(`Codex adapter has no row for ${key}`), missing.output);
+    assert.deepEqual(f.snapshot(OUT), before);
+    f.write("pstack/docs/harness/codex.md", `${f.read("pstack/docs/harness/codex.md")}\n${mapping}\n`);
+    const generated = f.run(GENERATOR);
+    assert.equal(generated.status, 0, generated.output);
+    assert.match(f.read(`${OUT}/skills/setup-pstack/SKILL.md`), /\.\.\/\.\.\/docs\/harness\/codex\.md/);
+    const check = f.run(GENERATOR, "--check");
+    assert.equal(check.status, 0, check.output);
+  });
+}
+
 test("regeneration replaces only the owned output and leaves both harnesses independently checkable", (t) => {
   const f = fixture(t);
   const source = f.snapshot("pstack");
