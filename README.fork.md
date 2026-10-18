@@ -8,10 +8,10 @@ upstream 同期時の競合を減らすため、既存ファイルへの変更�
 
 ## pstack の Codex 対応
 
-Claude Code 版と同様に、共通の `pstack/` から Codex 用の配布ツリーを生成します。
+共通の `pstack/` から、fork 専用のスクリプトで Codex 用の配布ツリーを生成します。上流の既存スクリプトと GitHub ワークフローは変更しません。
 
 - 配布定義: [`.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json)
-- Codex 用の生成物: [`harness/pstack/codex/`](./harness/pstack/codex/)
+- Codex 用の生成物: [`harness/codex/pstack/`](./harness/codex/pstack/)
 - ツール・モデル・保存先の読み替え: [Codex アダプター](./pstack/docs/harness/codex.md)
 
 ### インストール
@@ -33,8 +33,11 @@ codex plugin add pstack@plugins-fork
 
 スキルやアダプターを変更したら、リポジトリのルートから生成物を更新します。生成物は直接編集しません。
 
+上流の生成処理は `harness/pstack/`、Codex 用の生成処理は `harness/codex/pstack/` を更新します。それぞれ相手の生成物には触れません。
+
 ```bash
 node scripts/generate-pstack-harness-trees.mjs
+node scripts/generate-pstack-codex.mjs
 ```
 
 検証には CI と同じ依存をインストールし、次を実行します。
@@ -43,6 +46,8 @@ node scripts/generate-pstack-harness-trees.mjs
 npm install --no-save --package-lock=false ajv ajv-formats
 node --test scripts/pstack-harness.test.mjs
 node scripts/generate-pstack-harness-trees.mjs --check
+node scripts/generate-pstack-codex.mjs --check
 node scripts/validate-plugins.mjs
+node scripts/validate-codex-plugins.mjs
 node scripts/check-pstack-docs.mjs
 ```

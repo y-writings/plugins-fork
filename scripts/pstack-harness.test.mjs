@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const GENERATOR = "scripts/generate-pstack-harness-trees.mjs";
-const VALIDATOR = "scripts/validate-plugins.mjs";
+const UPSTREAM_GENERATOR = "scripts/generate-pstack-harness-trees.mjs";
+const GENERATOR = "scripts/generate-pstack-codex.mjs";
+const VALIDATOR = "scripts/validate-codex-plugins.mjs";
+const OUT = "harness/codex/pstack";
 const PLUGIN = { $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", name: "pstack", version: "1.2.3", description: "Fixture workflows" };
 const CODEX_PLUGIN = { name: "pstack", version: "1.2.3", description: "Fixture workflows", skills: "./skills/" };
 const MANUAL = "---\nname: poteto-mode\ndescription: Manual workflow\ndisable-model-invocation: true\n---\n\n# Mode\n\nUse `Task`.\n";
@@ -21,7 +23,7 @@ function fixture(t) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text);
   };
-  for (const script of [GENERATOR, VALIDATOR]) write(script, readFileSync(join(ROOT, script)));
+  for (const script of [UPSTREAM_GENERATOR, GENERATOR, VALIDATOR]) write(script, readFileSync(join(ROOT, script)));
   write("pstack/plugin.json", JSON.stringify(PLUGIN));
   write("pstack/LICENSE", "Fixture license\n");
   write("pstack/README.md", "[guide](./docs/guide/README.md)\n[Claude](./docs/harness/claude-code.md)\n[automation](./automations/benny/README.md)\n");
@@ -41,30 +43,33 @@ function fixture(t) {
     return { status: result.status, output: result.stdout + result.stderr };
   };
   const read = (path) => readFileSync(join(root, path), "utf8");
-  return { root, write, run, read };
+  const snapshot = (path) => readdirSync(join(root, path)).sort().map((name) => {
+    const child = join(path, name);
+    const stat = statSync(join(root, child));
+    return stat.isDirectory()
+      ? [name, snapshot(child)]
+      : [name, readFileSync(join(root, child)), stat.mode & 0o111];
+  });
+  return { root, write, run, read, snapshot };
 }
 
-test("each installed harness bundles its adapter, resources, and matching manifests", (t) => {
+test("Codex bundles its adapter, resources, and matching manifests", (t) => {
   const f = fixture(t);
   const result = f.run(GENERATOR);
   assert.equal(result.status, 0, result.output);
-  for (const [tree, manifest] of [["claude-code", ".claude-plugin"], ["codex", ".codex-plugin"]]) {
-    const out = `harness/pstack/${tree}`;
-    assert.match(f.read(`${out}/skills/poteto-mode/SKILL.md`), new RegExp(`\\.\\./\\.\\./docs/harness/${tree}\\.md`));
-    assert.equal(f.read(`${out}/docs/harness/${tree}.md`), f.read(`pstack/docs/harness/${tree}.md`));
-    assert.equal(f.read(`${out}/skills/setup-pstack/SKILL.md`), AUTOMATIC);
-    assert.deepEqual(readFileSync(join(f.root, out, "docs/guide/image.bin")), Buffer.from([0, 255, 1]));
-    assert.ok(statSync(join(f.root, out, "skills/poteto-mode/scripts/run.sh")).mode & 0o111);
-    assert.equal(f.read(`${out}/agents/poteto-agent.md`), f.read("pstack/agents/poteto-agent.md"));
-    assert.match(f.read(`${out}/README.md`), /\[guide\]\(\.\/docs\/guide\/README\.md\)/);
-    assert.match(f.read(`${out}/README.md`), tree === "claude-code"
-      ? /\[Claude\]\(\.\/docs\/harness\/claude-code\.md\)/
-      : /\[Claude\]\(https:\/\/github.com\/cursor\/plugins\/blob\/main\/pstack\/docs\/harness\/claude-code\.md\)/);
-    assert.match(f.read(`${out}/README.md`), /https:\/\/github.com\/cursor\/plugins\/blob\/main\/pstack\/automations\/benny\/README.md/);
-    assert.deepEqual(JSON.parse(f.read(`${out}/plugin.json`)), PLUGIN);
-    assert.deepEqual(JSON.parse(f.read(`${out}/${manifest}/plugin.json`)), tree === "codex" ? CODEX_PLUGIN : PLUGIN);
-  }
-  assert.ok(!existsSync(join(f.root, "harness/pstack/claude-code/docs/harness/codex.md")));
+  assert.match(f.read(`${OUT}/skills/poteto-mode/SKILL.md`), /\.\.\/\.\.\/docs\/harness\/codex\.md/);
+  assert.equal(f.read(`${OUT}/docs/harness/codex.md`), f.read("pstack/docs/harness/codex.md"));
+  assert.equal(f.read(`${OUT}/skills/setup-pstack/SKILL.md`), AUTOMATIC);
+  assert.deepEqual(readFileSync(join(f.root, OUT, "docs/guide/image.bin")), Buffer.from([0, 255, 1]));
+  assert.ok(statSync(join(f.root, OUT, "skills/poteto-mode/scripts/run.sh")).mode & 0o111);
+  assert.equal(f.read(`${OUT}/agents/poteto-agent.md`), f.read("pstack/agents/poteto-agent.md"));
+  assert.match(f.read(`${OUT}/README.md`), /\[guide\]\(\.\/docs\/guide\/README\.md\)/);
+  assert.match(f.read(`${OUT}/README.md`), /\[Claude\]\(https:\/\/github.com\/cursor\/plugins\/blob\/main\/pstack\/docs\/harness\/claude-code\.md\)/);
+  assert.match(f.read(`${OUT}/README.md`), /https:\/\/github.com\/cursor\/plugins\/blob\/main\/pstack\/automations\/benny\/README.md/);
+  assert.deepEqual(JSON.parse(f.read(`${OUT}/plugin.json`)), PLUGIN);
+  assert.deepEqual(JSON.parse(f.read(`${OUT}/.codex-plugin/plugin.json`)), CODEX_PLUGIN);
+  assert.ok(!existsSync(join(f.root, OUT, "docs/harness/claude-code.md")));
+  assert.ok(!existsSync(join(f.root, OUT, ".claude-plugin")));
   assert.equal(f.read("pstack/skills/poteto-mode/SKILL.md"), MANUAL);
   const check = f.run(GENERATOR, "--check");
   assert.equal(check.status, 0, check.output);
@@ -73,36 +78,62 @@ test("each installed harness bundles its adapter, resources, and matching manife
 test("Codex preserves manual-only policy without disabling automatic setup", (t) => {
   const f = fixture(t);
   assert.equal(f.run(GENERATOR).status, 0);
-  const sidecar = "harness/pstack/codex/skills/poteto-mode/agents/openai.yaml";
+  const sidecar = `${OUT}/skills/poteto-mode/agents/openai.yaml`;
   assert.equal(f.read(sidecar), "policy:\n  allow_implicit_invocation: false\n");
-  assert.ok(!existsSync(join(f.root, "harness/pstack/codex/skills/setup-pstack/agents/openai.yaml")));
-  assert.ok(!existsSync(join(f.root, "harness/pstack/claude-code/skills/poteto-mode/agents/openai.yaml")));
+  assert.ok(!existsSync(join(f.root, OUT, "skills/setup-pstack/agents/openai.yaml")));
   rmSync(join(f.root, sidecar));
   const check = f.run(GENERATOR, "--check");
   assert.equal(check.status, 1);
   assert.ok(check.output.includes(sidecar), check.output);
 });
 
-test("a missing Codex tool mapping fails before replacing either generated tree", (t) => {
+test("a missing Codex tool mapping fails before replacing the generated tree", (t) => {
   const f = fixture(t);
   assert.equal(f.run(GENERATOR).status, 0);
+  const before = f.snapshot(OUT);
   f.write("pstack/docs/harness/codex.md", "# Incomplete adapter\n");
   const result = f.run(GENERATOR);
   assert.equal(result.status, 1);
   assert.match(result.output, /Codex adapter has no row for `Task`/);
-  assert.match(f.read("harness/pstack/codex/docs/harness/codex.md"), /spawn_agent/);
+  assert.deepEqual(f.snapshot(OUT), before);
+});
+
+test("regeneration replaces only the owned output and leaves both harnesses independently checkable", (t) => {
+  const f = fixture(t);
+  const source = f.snapshot("pstack");
+  assert.equal(f.run(UPSTREAM_GENERATOR).status, 0);
+  const upstream = f.snapshot("harness/pstack");
+  f.write("harness/codex/other-plugin/keep.txt", "Keep sibling plugin.\n");
+  assert.equal(f.run(GENERATOR).status, 0);
+  assert.deepEqual(f.snapshot("harness/pstack"), upstream, "Codex generation changed upstream output");
+  const codex = f.snapshot(OUT);
+  const stale = `${OUT}/obsolete.txt`;
+  f.write(stale, "Stale generated file.\n");
+  const drifted = f.snapshot(OUT);
+  const check = f.run(GENERATOR, "--check");
+  assert.equal(check.status, 1);
+  assert.ok(check.output.includes(stale), check.output);
+  assert.deepEqual(f.snapshot(OUT), drifted, "--check changed generated files");
+  assert.equal(f.run(GENERATOR).status, 0);
+  assert.deepEqual(f.snapshot(OUT), codex, "regeneration did not remove stale output");
+  assert.deepEqual(f.snapshot("harness/pstack"), upstream);
+  assert.equal(f.read("harness/codex/other-plugin/keep.txt"), "Keep sibling plugin.\n");
+  assert.equal(f.run(UPSTREAM_GENERATOR).status, 0);
+  assert.deepEqual(f.snapshot(OUT), codex, "upstream generation changed Codex output");
+  assert.deepEqual(f.snapshot("pstack"), source, "generation changed source files");
+  for (const script of [UPSTREAM_GENERATOR, GENERATOR]) {
+    const result = f.run(script, "--check");
+    assert.equal(result.status, 0, result.output);
+  }
 });
 
 test("Codex marketplace validation accepts portable packages and checks identity and version", (t) => {
   const f = fixture(t);
-  cpSync(join(ROOT, "schemas"), join(f.root, "schemas"), { recursive: true });
-  symlinkSync(join(ROOT, "node_modules"), join(f.root, "node_modules"), "dir");
-  f.write(".cursor-plugin/marketplace.json", JSON.stringify({ name: "fixture", owner: { name: "Fixture" }, plugins: [] }));
   const marketplace = {
     name: "fixture",
     plugins: [{
       name: "pstack",
-      source: { source: "local", path: "./harness/pstack/codex" },
+      source: { source: "local", path: `./${OUT}` },
       policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
       category: "Developer Tools",
     }],
@@ -111,8 +142,8 @@ test("Codex marketplace validation accepts portable packages and checks identity
   assert.equal(f.run(GENERATOR).status, 0);
   const valid = f.run(VALIDATOR);
   assert.equal(valid.status, 0, valid.output);
-  const manifest = "harness/pstack/codex/.codex-plugin/plugin.json";
-  const portableManifest = "harness/pstack/codex/plugin.json";
+  const manifest = `${OUT}/.codex-plugin/plugin.json`;
+  const portableManifest = `${OUT}/plugin.json`;
   rmSync(join(f.root, manifest));
   const portable = f.run(VALIDATOR);
   assert.equal(portable.status, 0, portable.output);
@@ -129,7 +160,7 @@ test("Codex marketplace validation accepts portable packages and checks identity
     f.write(portableManifest, JSON.stringify(PLUGIN));
   }
   f.write(manifest, JSON.stringify(CODEX_PLUGIN));
-  for (const path of ["harness/pstack/codex", "./../outside"]) {
+  for (const path of [OUT, "./../outside"]) {
     marketplace.plugins[0].source.path = path;
     f.write(".agents/plugins/marketplace.json", JSON.stringify(marketplace));
     const result = f.run(VALIDATOR);
