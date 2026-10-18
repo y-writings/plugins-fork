@@ -102,8 +102,13 @@ for (const [key, path, instruction, mapping] of [
   ["`create-skill`", "SKILL.md", "Use the **create-skill** skill.", "`create-skill` maps to Codex's available skill-creator."],
   ["Bundled paths and scripts", "playbooks/run.md", "Run `scripts/run.sh`.", "Bundled paths and scripts resolve from the installed skill, keeping the project working directory."],
   ["Agent store", "playbooks/plan.md", "Write under the agent store's docs directory.", "Agent store uses a task-specific directory in the target workspace."],
+  ["Plugin installation", "SKILL.md", "Install with `/add-plugin pstack`.", "Plugin installation uses the fork checkout's local Codex catalog."],
+  ["Plugin installation", "playbooks/setup.md", "Install from Customize in the sidebar.", "Plugin installation uses the fork checkout's local Codex catalog."],
+  ["`/visualize`", "playbooks/report.md", "Draw the numbers with `/visualize`.", "`/visualize` uses an available visualization tool or a static chart artifact."],
+  ["External skills", "SKILL.md", "Run `/deslop` before commit.", "External skills use available session skills or the documented cleanup fallback."],
+  ["External skills", "playbooks/verify.md", "Verify with `control-ui` or `control-cli`.", "External skills use available surface drivers and keep missing live proof incomplete."],
 ]) {
-  test(`Codex requires the ${key} mapping before bundling dependent instructions`, (t) => {
+  test(`Codex requires the ${key} mapping for: ${instruction}`, (t) => {
     const f = fixture(t);
     assert.equal(f.run(GENERATOR).status, 0);
     const before = f.snapshot(OUT);

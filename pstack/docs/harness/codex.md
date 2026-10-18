@@ -13,6 +13,20 @@ pstack skills use Cursor names. In Codex, read this file once per session before
 | `create-skill`, `/create-skill` | Use Codex's `skill-creator`: find it in the current session's available-skills catalog, read the listed `SKILL.md`, and follow its supported authoring and validation steps. User-facing invocation is `$skill-creator`. If unavailable, report the missing dependency and leave dependent authoring incomplete. Do not claim a Cursor-specific test or description-optimization loop ran unless the available creator supports it. |
 | `Read`, `Grep`, `Glob`, `Bash` | Use the session's file and shell tools; prefer `rg` and `rg --files` for searches. |
 
+## Plugin installation
+
+In Codex setup help, replace `/add-plugin pstack` and Cursor's Customize UI with this fork's local catalog flow. From an actual checkout of this fork containing `.agents/plugins/marketplace.json`, run `codex plugin marketplace add .`, then `codex plugin add pstack@plugins-fork`, and start a new Codex session. The installed `<pstack>` cache is not the catalog checkout. If its location is unknown, link the [fork installation instructions](https://github.com/y-writings/plugins-fork/blob/main/README.fork.md#インストール) and request the checkout location only when installation is part of the task. In help-only responses, present the commands without running installation. Use this local catalog flow rather than a public directory or skills CLI.
+
+## External skills
+
+These dependencies are not bundled pstack skills. Find a matching skill or tool in the current session's catalog, read any listed `SKILL.md`, and follow its supported interface. If it is absent, apply the fallback below and disclose the substitution.
+
+| Cursor reference | Codex fallback when unavailable |
+| --- | --- |
+| `/visualize` | Make a chart from the verified numbers already gathered, using available plotting tools or a self-contained SVG/HTML chart in temporary task artifacts. Use Mermaid for relationships or a numeric chart when the current surface renders it. Preserve the caller's reporting constraints: no project-code changes, new apps/jobs, external posts, or fabricated data just to make a visual. A table does not replace a required chart. If no chart can be produced or displayed, report that required visual as incomplete. |
+| `/deslop` from `cursor-team-kit` | Review the diff and remove narrating comments, speculative guards, dead compatibility paths, and unrelated edits while preserving required behavior and error handling. This is a cleanup pass, not a claim that Cursor's skill ran. |
+| `control-ui`, `control-cli` from `cursor-team-kit` | Use an available driver for the actual UI or CLI surface and collect real interaction evidence. If no suitable driver is available, report the missing live lane as incomplete; unit tests alone do not satisfy it. |
+
 ## Bundled paths and scripts
 
 Resolve `pstack/<path>` from the installed `<pstack>/<path>`, including when a playbook asks for `git show origin/main:pstack/<path>`: read the installed file directly, since the target project's Git history does not contain the plugin. A bare `scripts/<path>` belonging to a pstack skill resolves under `<pstack>/skills/<owning-skill>/scripts/<path>`. Project-owned paths, such as a project's `scripts/snapshot.sh`, keep their project meaning.
