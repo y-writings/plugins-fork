@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readFileSync, existsSync } from "fs";
-import { resolve, dirname } from "path";
+import { resolve, dirname, sep } from "path";
 import { fileURLToPath } from "url";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
@@ -116,12 +116,43 @@ for (const entry of claudeMarketplace.plugins ?? []) {
   }
 }
 
+const codexMarketplacePath = resolve(root, ".agents/plugins/marketplace.json");
+const codexMarketplace = existsSync(codexMarketplacePath)
+  ? loadJSON(codexMarketplacePath)
+  : { plugins: [] };
+const sources = new Map();
+
+for (const entry of codexMarketplace.plugins ?? []) {
+  if (entry.source?.source !== "local" || typeof entry.source.path !== "string") {
+    fail(`Plugin "${entry.name}": Codex marketplace entries must use a local source path`);
+    continue;
+  }
+  const pluginDir = resolve(root, entry.source.path);
+  if (!entry.source.path.startsWith("./") || !pluginDir.startsWith(`${root}${sep}`)) {
+    fail(`Plugin "${entry.name}": Codex source path must start with ./ and stay inside the repository`);
+    continue;
+  }
+  sources.set(pluginDir, entry.name);
+  const manifests = ["plugin.json", ".codex-plugin/plugin.json"]
+    .filter((path) => existsSync(resolve(pluginDir, path)));
+  if (manifests.length === 0) {
+    fail(`Plugin "${entry.name}": missing plugin.json or .codex-plugin/plugin.json in "${entry.source.path}"`);
+    continue;
+  }
+  for (const manifest of manifests) {
+    const pluginJson = loadJSON(resolve(pluginDir, manifest));
+    if (pluginJson.name !== entry.name) {
+      fail(`Plugin "${entry.name}": Codex marketplace name does not match ${manifest} name "${pluginJson.name}"`);
+    }
+  }
+}
+
 const manifestPaths = [
   ".cursor-plugin/plugin.json",
   ".claude-plugin/plugin.json",
+  ".codex-plugin/plugin.json",
   "plugin.json",
 ];
-const sources = new Map();
 for (const entry of [
   ...(marketplace.plugins ?? []),
   ...(claudeMarketplace.plugins ?? []),
