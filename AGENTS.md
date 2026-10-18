@@ -2,6 +2,8 @@
 
 このリポジトリは [cursor/plugins](https://github.com/cursor/plugins) の個人利用向け fork。上流の更新に追従しながら独自機能を維持する。
 
+- この fork を skills.sh、SkillsMP などの外部ディレクトリや一般向け marketplace に登録・公開申請しない。一般向けの紹介・導入案内では upstream を案内し、元の作者・貢献者のクレジットを維持する。
+- この fork に対して `skills` CLI（`npx skills` など）を実行する場合は、毎回 `DISABLE_TELEMETRY=1` を実行環境に渡し、利用情報の送信を無効にする。Codex の導入は `README.fork.md` のローカルカタログを使う手順に従う。
 - `origin`: `https://github.com/y-writings/plugins-fork.git`。push・PR の宛先はこの fork。上流へ push・PR は送らない。
 - `upstream`: `https://github.com/cursor/plugins.git`。更新の取得元。
 - `main` は独自機能を含む利用版で、`origin/main` を追跡する。独自変更は `main` 起点の `feat/<name>` で開発し、`main` に統合する。上流との差分は小さく保つ。

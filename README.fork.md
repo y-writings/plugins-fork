@@ -2,6 +2,24 @@
 
 このファイルには、`y-writings/plugins-fork` 固有の機能と利用方法を記載します。上流の説明は [README.md](./README.md) を参照してください。
 
+## 外部ディレクトリへの掲載方針
+
+このリポジトリは個人利用のための非公式 fork です。skills.sh、SkillsMP などのスキル・プラグイン配布サイトや一般向け marketplace への掲載・登録を希望しません。この fork から登録・公開申請も行いません。
+
+poteto さんと Cursor チームをはじめ、元の作者・貢献者に敬意を払い、原著者の表記とライセンスを維持します。一般向けの紹介・導入案内には [cursor/plugins](https://github.com/cursor/plugins) と [upstream の pstack](https://github.com/cursor/plugins/tree/main/pstack) をご利用ください。
+
+> This is an unofficial fork for personal use. Please do not index or list this repository in skill/plugin directories or marketplaces. Direct users to the upstream project instead.
+
+これは掲載を希望しない意思表示です。公開リポジトリを第三者が収集することを技術的に防ぐ設定ではありません。
+
+skills.sh は [skills CLI の利用情報をもとに自動掲載](https://www.skills.sh/docs/faq)します。この fork に対して `skills` CLI（`npx skills` など）を使う場合は、コマンドを実行するシェルで事前に次を設定してください。
+
+```bash
+export DISABLE_TELEMETRY=1
+```
+
+[この設定](https://www.skills.sh/docs/cli)は、そのシェルから起動する skills CLI の利用情報送信を無効にします。別のシェルでは再設定が必要です。Codex への導入は、下記のローカルカタログを使う手順に従ってください。
+
 ## 変更方針
 
 upstream 同期時の競合を減らすため、既存ファイルへの変更は動作・検証に必要な範囲に限定します。既存の README など、人間向けの説明文への変更は避けます。fork 固有のインストール方法や補足は、この `README.fork.md` にまとめます。
