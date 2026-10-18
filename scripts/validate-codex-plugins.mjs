@@ -15,12 +15,15 @@ function fail(message) {
 }
 
 for (const entry of marketplace.plugins ?? []) {
-  if (entry.source?.source !== "local" || typeof entry.source.path !== "string") {
+  const source = typeof entry.source === "string"
+    ? { source: "local", path: entry.source }
+    : entry.source;
+  if (source?.source !== "local" || typeof source.path !== "string") {
     fail(`Plugin "${entry.name}": Codex marketplace entries must use a local source path`);
     continue;
   }
-  const pluginDir = resolve(root, entry.source.path);
-  if (!entry.source.path.startsWith("./") || !pluginDir.startsWith(`${root}${sep}`)) {
+  const pluginDir = resolve(root, source.path);
+  if (!source.path.startsWith("./") || !pluginDir.startsWith(`${root}${sep}`)) {
     fail(`Plugin "${entry.name}": Codex source path must start with ./ and stay inside the repository`);
     continue;
   }
@@ -28,7 +31,7 @@ for (const entry of marketplace.plugins ?? []) {
     .filter((path) => existsSync(resolve(pluginDir, path)))
     .map((path) => ({ path, plugin: loadJSON(resolve(pluginDir, path)) }));
   if (manifests.length === 0) {
-    fail(`Plugin "${entry.name}": missing plugin.json or .codex-plugin/plugin.json in "${entry.source.path}"`);
+    fail(`Plugin "${entry.name}": missing plugin.json or .codex-plugin/plugin.json in "${source.path}"`);
     continue;
   }
   for (const { path, plugin } of manifests) {
@@ -41,7 +44,7 @@ for (const entry of marketplace.plugins ?? []) {
     .filter(({ version }) => version !== undefined);
   if (new Set(versions.map(({ version }) => version)).size > 1) {
     fail(`Plugin "${entry.name}": manifest versions differ:`);
-    for (const { path, version } of versions) console.error(`  ${entry.source.path}/${path}: ${version}`);
+    for (const { path, version } of versions) console.error(`  ${source.path}/${path}: ${version}`);
   }
 }
 

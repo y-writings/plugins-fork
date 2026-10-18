@@ -127,44 +127,62 @@ test("regeneration replaces only the owned output and leaves both harnesses inde
   }
 });
 
-test("Codex marketplace validation accepts portable packages and checks identity and version", (t) => {
-  const f = fixture(t);
-  const marketplace = {
-    name: "fixture",
-    plugins: [{
-      name: "pstack",
-      source: { source: "local", path: `./${OUT}` },
-      policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
-      category: "Developer Tools",
-    }],
-  };
-  f.write(".agents/plugins/marketplace.json", JSON.stringify(marketplace));
-  assert.equal(f.run(GENERATOR).status, 0);
-  const valid = f.run(VALIDATOR);
-  assert.equal(valid.status, 0, valid.output);
-  const manifest = `${OUT}/.codex-plugin/plugin.json`;
-  const portableManifest = `${OUT}/plugin.json`;
-  rmSync(join(f.root, manifest));
-  const portable = f.run(VALIDATOR);
-  assert.equal(portable.status, 0, portable.output);
-  for (const [value, diagnostic] of [
-    [null, /missing plugin.json or \.codex-plugin\/plugin.json/],
-    [{ ...CODEX_PLUGIN, name: "wrong" }, /Codex marketplace name does not match/],
-    [{ ...CODEX_PLUGIN, version: "2.0.0" }, /manifest versions differ/],
-  ]) {
-    if (value === null) rmSync(join(f.root, portableManifest));
-    else f.write(manifest, JSON.stringify(value));
-    const result = f.run(VALIDATOR);
-    assert.equal(result.status, 1, result.output);
-    assert.match(result.output, diagnostic);
-    f.write(portableManifest, JSON.stringify(PLUGIN));
-  }
-  f.write(manifest, JSON.stringify(CODEX_PLUGIN));
-  for (const path of [OUT, "./../outside"]) {
-    marketplace.plugins[0].source.path = path;
+for (const [form, source] of [
+  ["object", (path) => ({ source: "local", path })],
+  ["string", (path) => path],
+]) {
+  test(`Codex marketplace validates paths, identity, and versions with ${form} sources`, (t) => {
+    const f = fixture(t);
+    const marketplace = {
+      name: "fixture",
+      plugins: [{
+        name: "pstack",
+        source: source(`./${OUT}`),
+        policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+        category: "Developer Tools",
+      }],
+    };
     f.write(".agents/plugins/marketplace.json", JSON.stringify(marketplace));
+    assert.equal(f.run(GENERATOR).status, 0);
+    const valid = f.run(VALIDATOR);
+    assert.equal(valid.status, 0, valid.output);
+    const manifest = `${OUT}/.codex-plugin/plugin.json`;
+    const portableManifest = `${OUT}/plugin.json`;
+    rmSync(join(f.root, manifest));
+    const portable = f.run(VALIDATOR);
+    assert.equal(portable.status, 0, portable.output);
+    for (const [value, diagnostic] of [
+      [null, /missing plugin.json or \.codex-plugin\/plugin.json/],
+      [{ ...CODEX_PLUGIN, name: "wrong" }, /Codex marketplace name does not match/],
+      [{ ...CODEX_PLUGIN, version: "2.0.0" }, /manifest versions differ/],
+    ]) {
+      if (value === null) rmSync(join(f.root, portableManifest));
+      else f.write(manifest, JSON.stringify(value));
+      const result = f.run(VALIDATOR);
+      assert.equal(result.status, 1, result.output);
+      assert.match(result.output, diagnostic);
+      f.write(portableManifest, JSON.stringify(PLUGIN));
+    }
+    f.write(manifest, JSON.stringify(CODEX_PLUGIN));
+    for (const path of [OUT, "./../outside"]) {
+      marketplace.plugins[0].source = source(path);
+      f.write(".agents/plugins/marketplace.json", JSON.stringify(marketplace));
+      const result = f.run(VALIDATOR);
+      assert.equal(result.status, 1, result.output);
+      assert.match(result.output, /Codex source path must start with \.\/ and stay inside the repository/);
+    }
+  });
+}
+
+test("Codex marketplace rejects malformed and nonlocal source objects", (t) => {
+  const f = fixture(t);
+  f.write(`${OUT}/plugin.json`, JSON.stringify(PLUGIN));
+  for (const source of [null, { source: "local" }, { source: "local", path: 1 }, { source: "url", path: `./${OUT}` }]) {
+    f.write(".agents/plugins/marketplace.json", JSON.stringify({
+      plugins: [{ name: "pstack", source }],
+    }));
     const result = f.run(VALIDATOR);
     assert.equal(result.status, 1, result.output);
-    assert.match(result.output, /Codex source path must start with \.\/ and stay inside the repository/);
+    assert.match(result.output, /Codex marketplace entries must use a local source path/);
   }
 });
