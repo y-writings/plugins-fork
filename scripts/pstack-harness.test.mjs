@@ -88,6 +88,75 @@ test("Codex preserves manual-only policy without disabling automatic setup", (t)
   assert.ok(check.output.includes(sidecar), check.output);
 });
 
+test("Codex keeps large entrypoints compact without losing instructions or relative resources", (t) => {
+  const f = fixture(t);
+  const body = "    Keep this indented code block.\n\n# Mode\n\n" + "Keep every instruction.\n".repeat(1000)
+    + "\n[Details](references/details.md)\n";
+  const source = MANUAL.slice(0, MANUAL.indexOf("# Mode")) + body;
+  f.write("pstack/skills/poteto-mode/SKILL.md", source);
+  f.write("pstack/skills/poteto-mode/references/details.md", "Workflow details.\n");
+  const result = f.run(GENERATOR);
+  assert.equal(result.status, 0, result.output);
+  const entry = f.read(`${OUT}/skills/poteto-mode/SKILL.md`);
+  assert.ok(Buffer.byteLength(entry) <= 8000, "the entrypoint must fit Codex's main prompt byte limit");
+  const href = entry.match(/\]\(([^)]+codex-instructions\.md)\)/)?.[1];
+  assert.ok(href, "the entrypoint must link to the complete workflow");
+  const workflow = join(`${OUT}/skills/poteto-mode`, href);
+  assert.equal(dirname(workflow), `${OUT}/skills/poteto-mode`, "workflow-relative paths must keep their original base");
+  assert.equal(f.read(workflow), body, "the complete source instructions must survive generation");
+  assert.equal(f.read(join(dirname(workflow), "references/details.md")), "Workflow details.\n");
+  assert.equal(f.read("pstack/skills/poteto-mode/SKILL.md"), source);
+});
+
+test("Codex applies the byte limit to the final rendered skill", (t) => {
+  const f = fixture(t);
+  const linked = `${AUTOMATIC}\n[Automation](../../automations/benny/README.md)\n`;
+  for (const [label, skill, source, split] of [
+    ["at the limit", "setup-pstack", AUTOMATIC + "x".repeat(8000 - Buffer.byteLength(AUTOMATIC)), false],
+    ["over the limit", "setup-pstack", AUTOMATIC + "x".repeat(8001 - Buffer.byteLength(AUTOMATIC)), true],
+    ["UTF-8 bytes exceed character count", "setup-pstack", AUTOMATIC + "あ".repeat(3000), true],
+    ["adapter pushes the entrypoint over the limit", "poteto-mode", MANUAL + "x".repeat(8000 - Buffer.byteLength(MANUAL)), true],
+    ["rewritten links push the entrypoint over the limit", "setup-pstack", linked + "x".repeat(8000 - Buffer.byteLength(linked)), true],
+  ]) {
+    f.write(`pstack/skills/${skill}/SKILL.md`, source);
+    const result = f.run(GENERATOR);
+    assert.equal(result.status, 0, `${label}: ${result.output}`);
+    const entry = f.read(`${OUT}/skills/${skill}/SKILL.md`);
+    assert.ok(Buffer.byteLength(entry) <= 8000, label);
+    assert.equal(existsSync(join(f.root, OUT, "skills", skill, "codex-instructions.md")), split, label);
+    if (!split) assert.equal(entry, source, "small skills must retain their inline instructions");
+    if (skill === "poteto-mode") {
+      assert.match(f.read(`${OUT}/skills/${skill}/codex-instructions.md`), /\[the Codex adapter\]\(\.\.\/\.\.\/docs\/harness\/codex\.md\)/);
+    }
+  }
+  assert.match(f.read(`${OUT}/skills/setup-pstack/codex-instructions.md`), /\[Automation\]\(https:\/\/github.com\/cursor\/plugins\/blob\/main\/pstack\/automations\/benny\/README\.md\)/);
+});
+
+test("Codex rejects instruction-file collisions before replacing the generated tree", (t) => {
+  for (const resource of ["codex-instructions.md", "codex-instructions.md/notes.txt"]) {
+    const f = fixture(t);
+    f.write(`pstack/skills/poteto-mode/${resource}`, "Existing source instructions.\n");
+    assert.equal(f.run(GENERATOR).status, 0);
+    const before = f.snapshot(OUT);
+    f.write("pstack/skills/poteto-mode/SKILL.md", MANUAL + "x".repeat(8000));
+    const result = f.run(GENERATOR);
+    assert.equal(result.status, 1, `${resource}: ${result.output}`);
+    assert.match(result.output, /Cannot generate skills\/poteto-mode\/codex-instructions\.md: a source resource already exists/);
+    assert.deepEqual(f.snapshot(OUT), before, resource);
+  }
+});
+
+test("Codex rejects an oversized entrypoint when its metadata cannot be moved", (t) => {
+  const f = fixture(t);
+  assert.equal(f.run(GENERATOR).status, 0);
+  const before = f.snapshot(OUT);
+  f.write("pstack/skills/poteto-mode/SKILL.md", MANUAL.replace("Manual workflow", "x".repeat(8000)));
+  const result = f.run(GENERATOR);
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /skills\/poteto-mode\/SKILL\.md still exceeds 8000 bytes/);
+  assert.deepEqual(f.snapshot(OUT), before);
+});
+
 test("Codex removes Cursor metadata while preserving portable fields and skill content", (t) => {
   const f = fixture(t);
   const portable = "name: poteto-mode\ndescription: >-\n  Preserve $& multiline\n  skill descriptions.\nlicense: MIT\ncompatibility: Requires Node.js\nallowed-tools: Read\nmetadata:\n  icon: keep-me\n  color: keep-me-too\n";

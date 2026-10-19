@@ -15,6 +15,8 @@ const GUIDE = "docs/guide";
 const COMMAND = "node scripts/generate-pstack-codex.mjs";
 const GITHUB = "https://github.com/cursor/plugins";
 const LINK = /\]\(([^)\s]+)\)/g;
+// Codex's skills extension truncates explicitly invoked SKILL.md files at 8,000 UTF-8 bytes.
+const MAX_MAIN_PROMPT_BYTES = 8_000;
 
 const TERMS = [
   { key: "`Task`", re: /`Task`|\bTask (tool|subagent|call)/ },
@@ -160,6 +162,26 @@ function render() {
       return `](${GITHUB}/${kind}/main/pstack/${target}${href.slice(href.search(/[#?]|$/))})`;
     });
     entry.bytes = Buffer.from(text);
+  }
+  for (const [skill, { wrap }] of classes) {
+    const entry = files.get(`skills/${skill}/SKILL.md`);
+    if (entry.bytes.length <= MAX_MAIN_PROMPT_BYTES) continue;
+    const text = entry.bytes.toString("utf8");
+    const frontmatter = text.match(/^---\n[\s\S]*?\n---/)[0];
+    const body = text.slice(frontmatter.length).replace(/^\n+/, "");
+    // A sibling file preserves relative paths after link rewriting and avoids prompt truncation.
+    const instructions = `skills/${skill}/codex-instructions.md`;
+    if (has(files, instructions)) throw new Error(`Cannot generate ${instructions}: a source resource already exists`);
+    files.set(instructions, { bytes: Buffer.from(body), executable: false });
+    entry.bytes = Buffer.from(`${frontmatter}\n\n${body.match(/^# .*$/m)?.[0] ?? `# ${skill}`}\n\n` +
+      (wrap ? `${line}\n\n` : "") +
+      "Before doing any work, read [the full skill instructions](./codex-instructions.md) in full. " +
+      "Treat that file as the continuation of this skill. Read it in chunks if necessary; do not proceed with truncated content.\n\n" +
+      "Resolve bundled relative paths from this skill directory. Give delegates the absolute path to this `SKILL.md` " +
+      "and require them to read `codex-instructions.md` in full too.\n");
+    if (entry.bytes.length > MAX_MAIN_PROMPT_BYTES) {
+      throw new Error(`skills/${skill}/SKILL.md still exceeds ${MAX_MAIN_PROMPT_BYTES} bytes; shorten its frontmatter or heading`);
+    }
   }
   return files;
 }
